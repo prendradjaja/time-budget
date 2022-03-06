@@ -1,6 +1,10 @@
 run:
 	npm run build
-	npm start
+	cat ../dist/index.js | pbcopy
+
+copy-last:
+	make run
 
 test:
-	cd ..; npm test
+	npm run build
+	TEST=true node ../dist/index.js
