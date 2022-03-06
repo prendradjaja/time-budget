@@ -57,22 +57,24 @@
     { move: 25, time: 10 * 60 },
     { move: 30, time: 9 * 60 },
     { move: 35, time: 8 * 60 },
-    { move: Infinity, time: 0 },
+    { move: Infinity, time: 99999 },
   ];
+  const heartDuration = 60; // Seconds
 
   // const plan = [
   //   // Time is in seconds
-  //   { move: 5, time: 5 * 60 },
-  //   { move: 10, time: 4.5 * 60 },
-  //   { move: 15, time: 4 * 60 },
-  //   { move: 20, time: 3.5 * 60 },
-  //   { move: 25, time: 3 * 60 },
-  //   { move: 30, time: 2.5 * 60 },
-  //   { move: 35, time: 2 * 60 },
-  //   { move: Infinity, time: 0 },
+  //   { move: 5, time: 4 * 60 + 50 },
+  //   { move: 10, time: 4 * 60 + 40 },
+  //   { move: 15, time: 4 * 60 + 30 },
+  //   { move: 20, time: 4 * 60 + 20 },
+  //   { move: 25, time: 4 * 60 + 10 },
+  //   { move: 30, time: 4 * 60 },
+  //   { move: 35, time: 3 * 60 + 50 },
+  //   { move: 35, time: 3 * 60 + 50 },
+  //   { move: Infinity, time: 99999 },
   // ];
+  // const heartDuration = 10; // Seconds
 
-  const heartDuration = 60; // Seconds
   const maxHearts = 3;
 
   type PlanSegment = typeof plan[0];
@@ -83,6 +85,7 @@
     moves: string[];
     color: Color;
     heartsEl: HTMLElement;
+    hearts: number;
   }
 
   let globals: Globals = undefined as any;
@@ -113,9 +116,10 @@
       moves: [],
       color: getColor(),
       heartsEl,
+      hearts: maxHearts,
     };
 
-    setHearts(3);
+    setHearts(maxHearts);
 
     const observer = new MutationObserver(onMoveListMutation);
     observer.observe(moveListEl, { childList: true, subtree: true });
@@ -180,11 +184,29 @@
 
     const lastMoveColor: Color =
       globals.moves.length % 2 === 0 ? "black" : "white";
+
     if (globals.color !== lastMoveColor) {
       return;
     }
 
-    console.log(`[${getClock()}]`, moves);
+    const moveNumber = getMoveNumber();
+    const time = getClock();
+    const { hearts, detail: heartDetail } = getHearts(moveNumber, time);
+
+    if (moveNumber % 5 === 0) {
+      console.log(`[${getClockRaw()}] ${moveNumber} (${heartDetail})`);
+    } else {
+      console.log(`- [${getClockRaw()}] ${moveNumber}`);
+    }
+
+    if (hearts < globals.hearts) {
+      globals.hearts = hearts;
+      setHearts(hearts);
+      blinkHearts();
+    } else if (hearts !== globals.hearts) {
+      globals.hearts = hearts;
+      setHearts(hearts);
+    }
   }
 
   // Assumes the player is playing with normal orientation
@@ -204,10 +226,23 @@
     );
   }
 
-  function getClock(): string {
+  // TODO DRY
+  function getClockRaw(): string {
     const timeEl = $(".rclock-bottom .time") as HTMLElement | undefined;
     if (timeEl) {
-      return timeEl.innerText.replaceAll("\n", "");
+      const clockString = timeEl.innerText.replaceAll("\n", "");
+      return clockString;
+    } else {
+      throw new Error("No clock");
+    }
+  }
+
+  function getClock(): number {
+    const timeEl = $(".rclock-bottom .time") as HTMLElement | undefined;
+    if (timeEl) {
+      const clockString = timeEl.innerText.replaceAll("\n", "");
+      const [minutes, seconds] = clockString.split(":");
+      return +minutes * 60 + +seconds;
     } else {
       throw new Error("No clock");
     }
@@ -224,6 +259,7 @@
     moveNumber: number,
     time: number
   ): { hearts: number; detail: string } {
+    // console.log({moveNumber, time});
     const planSegment = getPlanSegment(moveNumber);
     const deficit = planSegment.time - time;
     const heartsDeficit = deficit / heartDuration;
