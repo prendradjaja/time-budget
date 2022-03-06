@@ -1,4 +1,7 @@
 {
+  const $ = (s: string) => document.querySelector(s);
+  const $$ = (s: string) => document.querySelectorAll(s);
+
   const selectors = {
     MOVE_LIST: "rm6",
     MOVE: "rm6 u8t",
@@ -6,8 +9,44 @@
     ORIENTATION_BLACK: ".main-board .orientation-black",
   };
 
-  const $ = (s: string) => document.querySelector(s);
-  const $$ = (s: string) => document.querySelectorAll(s);
+  const INVERTED = "inverted";
+
+  const stylesheet = `
+.heart-container {
+  font-family: monospace;
+  width: max-content;
+  padding: 10px;
+  font-size: 20px;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 999999;
+}
+
+.heart-container:not(.inverted) {
+  background: black;
+}
+
+.heart-container.inverted {
+  background: red;
+}
+
+.heart-container:not(.inverted) .heart {
+  color: red;
+}
+
+.heart-container:not(.inverted) .no-heart {
+  color: white;
+}
+
+.heart-container.inverted .heart {
+  color: white;
+}
+
+.heart-container.inverted .no-heart {
+  color: black;
+}
+  `;
 
   const plan = [
     // Time is in seconds
@@ -20,18 +59,33 @@
     { move: 35, time: 8 * 60 },
     { move: Infinity, time: 0 },
   ];
+
+  // const plan = [
+  //   // Time is in seconds
+  //   { move: 5, time: 5 * 60 },
+  //   { move: 10, time: 4.5 * 60 },
+  //   { move: 15, time: 4 * 60 },
+  //   { move: 20, time: 3.5 * 60 },
+  //   { move: 25, time: 3 * 60 },
+  //   { move: 30, time: 2.5 * 60 },
+  //   { move: 35, time: 2 * 60 },
+  //   { move: Infinity, time: 0 },
+  // ];
+
   const heartDuration = 60; // Seconds
+  const maxHearts = 3;
 
   type PlanSegment = typeof plan[0];
 
   type Color = "white" | "black";
 
-  interface State {
+  interface Globals {
     moves: string[];
     color: Color;
+    heartsEl: HTMLElement;
   }
 
-  let state: State = undefined as any;
+  let globals: Globals = undefined as any;
 
   function main(): void {
     if (!globalThis?.process?.env?.TEST) {
@@ -46,10 +100,23 @@
     if (!moveListEl) {
       throw new Error("No move list");
     }
-    state = {
+
+    const styleEl = document.createElement("style");
+    styleEl.textContent = stylesheet;
+    document.head.appendChild(styleEl);
+
+    const heartsEl = document.createElement("div");
+    heartsEl.classList.add("heart-container");
+    document.body.appendChild(heartsEl);
+
+    globals = {
       moves: [],
       color: getColor(),
+      heartsEl,
     };
+
+    setHearts(3);
+
     const observer = new MutationObserver(onMoveListMutation);
     observer.observe(moveListEl, { childList: true, subtree: true });
     // observer.disconnect();
@@ -106,14 +173,14 @@
 
   function onMoveListMutation(): void {
     const moves = getMoves();
-    if (moves === state.moves) {
+    if (moves === globals.moves) {
       return;
     }
-    state.moves = moves;
+    globals.moves = moves;
 
     const lastMoveColor: Color =
-      state.moves.length % 2 === 0 ? "black" : "white";
-    if (state.color !== lastMoveColor) {
+      globals.moves.length % 2 === 0 ? "black" : "white";
+    if (globals.color !== lastMoveColor) {
       return;
     }
 
@@ -147,7 +214,7 @@
   }
 
   function getMoveNumber(): number {
-    return Math.floor((state.moves.length + 1) / 2);
+    return Math.floor((globals.moves.length + 1) / 2);
   }
 
   /**
@@ -157,7 +224,6 @@
     moveNumber: number,
     time: number
   ): { hearts: number; detail: string } {
-    const maxHearts = 3;
     const planSegment = getPlanSegment(moveNumber);
     const deficit = planSegment.time - time;
     const heartsDeficit = deficit / heartDuration;
@@ -191,6 +257,28 @@
 
   function getPlanSegment(moveNumber: number): PlanSegment {
     return plan.filter((segment) => segment.move >= moveNumber)[0];
+  }
+
+  function setHearts(n: number) {
+    const hearts = new Array(n).fill('<span class="heart">♥</span>');
+    const nulls = new Array(maxHearts - n).fill(
+      '<span class="no-heart">♥</span>'
+    );
+    globals.heartsEl.innerHTML = [...hearts, ...nulls].join(" ");
+  }
+
+  function blinkHearts() {
+    const reps = 5;
+    const frameDuration = 200;
+    for (let i = 0; i <= reps; i++) {
+      setTimeout(() => {
+        if (i % 2 !== 0 || i === reps) {
+          globals.heartsEl.classList.remove(INVERTED);
+        } else {
+          globals.heartsEl.classList.add(INVERTED);
+        }
+      }, i * frameDuration);
+    }
   }
 
   main();
